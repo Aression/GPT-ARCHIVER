@@ -1,0 +1,7 @@
+outputs
+html_data
+output
+*.csv
+*.json
+__pycache__
+*.yaml
