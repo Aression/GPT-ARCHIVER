@@ -6,6 +6,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from zhipuai import ZhipuAI
 from sensitive_detect import filter_strings
 
+import logging
+# A logger for this file
+log = logging.getLogger(__name__)
+
 def get_extracted_csv(file_path):
     df = pd.read_csv(file_path)
     df = df[df['Link Text'] != '']
@@ -26,7 +30,7 @@ def main(cfg):
 
     # illegal texts are ignored now
     legal_texts, illegal_texts = filter_strings(link_texts)
-    print(f'敏感词过滤完成，合法网页名称共计{len(legal_texts)}个，不合法网页名称共计{len(illegal_texts)}个。')
+    log.info(f'敏感词过滤完成，合法网页名称共计{len(legal_texts)}个，不合法网页名称共计{len(illegal_texts)}个。')
     
     legal_data = data[data['Link Text'].isin(legal_texts)]
     illegal_data = data[data['Link Text'].isin(illegal_texts)]
@@ -41,7 +45,7 @@ def main(cfg):
                 messages=[
                     {
                         "role": "user", 
-                        "content": f"{cfg.cls_prompt}。这是网页标题：{title}。"
+                        "content": f"{cfg.cls_prompt}{title}。"
                     },
                 ],
                 temperature=0.1,
@@ -49,9 +53,11 @@ def main(cfg):
             )
             return json.loads(response.json())['choices'][0]['message']['content']
         except Exception as e:
-            print(f"Error while processing title: {title}. Error message: {str(e)}")
+            log.info(f"Error while processing title: {title}. Error message: {str(e)}")
             with illegal_lock:
                 illegal_data.loc[len(illegal_data) + 1] = data.loc[data['Link Text'] == title].values[0]
+            with legal_lock:
+                legal_data.drop(legal_data[legal_data['Link Text'] == title].index, inplace=True)
             return None
     
     def classify_title(title):
